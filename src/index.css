@@ -24,38 +24,6 @@
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
     --radius: 0.5rem;
-
-    /* Sidebar colors */
-    --sidebar-background: 222.2 84% 4.9%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 210 40% 98%;
-    --sidebar-primary-foreground: 222.2 84% 4.9%;
-    --sidebar-accent: 217.2 32.6% 17.5%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217.2 32.6% 17.5%;
-    --sidebar-ring: 212.7 26.8% 83.9%;
-
-    /* Manga theme colors */
-    --manga-bg: 222.2 84% 4.9%;
-    --manga-surface: 217.2 32.6% 17.5%;
-    --manga-surface-hover: 215 25% 27%;
-    --manga-border: 217.2 32.6% 17.5%;
-    --manga-text: 210 40% 98%;
-    --manga-text-muted: 215 20.2% 65.1%;
-
-    /* Gradients */
-    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --gradient-accent: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    --gradient-danger: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
-
-    /* Glows */
-    --glow-primary: 0 0 20px rgba(102, 126, 234, 0.5);
-    --glow-accent: 0 0 20px rgba(240, 147, 251, 0.5);
-    --glow-success: 0 0 20px rgba(72, 187, 120, 0.5);
-
-    /* Transitions */
-    --transition-smooth: cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
   }
 
   * {
@@ -63,8 +31,25 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
   }
 }
 
-/* Manga Downloader Design System - Dark theme with neon accents */
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #374151;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #6b7280;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
