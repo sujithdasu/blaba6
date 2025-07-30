@@ -1,11 +1,9 @@
-// server/index.js
+
 const express = require('express');
 const cors = require('cors');
+const fs = require('fs-extra');
 const path = require('path');
-
-// Import scrapers
-const scrapeErosScans = require('../scrapers/erosScans');
-const scrapeAsura = require('../scrapers/asura');
+const { chromium } = require('playwright');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -14,7 +12,10 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// Site scraper mapping
+// Import scrapers
+const scrapeErosScans = require('../scrapers/erosScans');
+const scrapeAsura = require('../scrapers/asura');
+
 const scrapers = {
   'erosscans': scrapeErosScans,
   'asurascans': scrapeAsura,
@@ -24,6 +25,15 @@ const scrapers = {
   'hentai2read': null, // Placeholder for hentai2read.js
   'hitomi': null     // Placeholder for hitomi.js
 };
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'Server is running',
+    availableScrapers: Object.keys(scrapers).filter(key => scrapers[key] !== null)
+  });
+});
 
 // API endpoint for scraping
 app.post('/api/scrape', async (req, res) => {
@@ -70,14 +80,21 @@ app.post('/api/scrape', async (req, res) => {
     // Run the scraper
     const result = await scraper(options);
 
-    res.json({
-      status: 'success',
-      message: `Download completed for ${title}`,
-      result
-    });
+    if (result && result.success) {
+      res.json({
+        status: 'success',
+        message: 'Download completed',
+        result: { count: result.count || 0 }
+      });
+    } else {
+      res.status(500).json({
+        status: 'error',
+        message: 'Download failed'
+      });
+    }
 
   } catch (error) {
-    console.error('❌ Scraping error:', error);
+    console.error('Scraping error:', error);
     res.status(500).json({
       status: 'error',
       message: error.message || 'Internal server error'
@@ -85,19 +102,7 @@ app.post('/api/scrape', async (req, res) => {
   }
 });
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    availableScrapers: Object.keys(scrapers).filter(key => scrapers[key] !== null)
-  });
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📱 API available at http://localhost:${PORT}`);
 });
-
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Manga downloader server running on port ${PORT}`);
-  console.log(`📡 API endpoint: http://localhost:${PORT}/api/scrape`);
-  console.log(`🔍 Available scrapers: ${Object.keys(scrapers).filter(key => scrapers[key] !== null).join(', ')}`);
-});
-
-module.exports = app;

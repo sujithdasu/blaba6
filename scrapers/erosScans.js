@@ -1,4 +1,4 @@
-// scrapers/erosScans.js
+
 const { chromium } = require('playwright');
 const fs = require('fs-extra');
 const path = require('path');
@@ -20,7 +20,7 @@ async function scrapeErosScans({ url, title = 'eros_manga' }) {
   } catch (err) {
     console.error(`❌ Failed to load page: ${err.message}`);
     await browser.close();
-    return;
+    return { success: false, error: err.message };
   }
 
   await page.evaluate(() => window.scrollBy(0, 400));
@@ -35,22 +35,29 @@ async function scrapeErosScans({ url, title = 'eros_manga' }) {
   const folder = path.join(__dirname, '..', 'downloads', title.replace(/\s+/g, '_'));
   await fs.ensureDir(folder);
 
-  let index = 1;
-  for (const imgUrl of imgLinks) {
+  let downloadCount = 0;
+  for (let i = 0; i < imgLinks.length; i++) {
     try {
-      const view = await page.goto(imgUrl);
-      const buffer = await view.body();
-      const ext = path.extname(imgUrl).split('?')[0] || '.webp';
-      const filePath = path.join(folder, `${index}${ext}`);
-      await fs.writeFile(filePath, buffer);
-      console.log(`✅ Saved image ${index}: ${filePath}`);
-      index++;
-    } catch (err) {
-      console.error(`❌ Failed to download: ${imgUrl}`);
+      const imgUrl = imgLinks[i];
+      const filename = `image_${String(i + 1).padStart(3, '0')}.jpg`;
+      const filepath = path.join(folder, filename);
+      
+      const response = await page.goto(imgUrl);
+      if (response) {
+        const buffer = await response.body();
+        await fs.writeFile(filepath, buffer);
+        downloadCount++;
+        console.log(`📥 Downloaded: ${filename}`);
+      }
+    } catch (error) {
+      console.error(`❌ Failed to download image ${i + 1}:`, error.message);
     }
   }
 
   await browser.close();
+  console.log(`✅ Download complete! ${downloadCount} images saved to ${folder}`);
+  
+  return { success: true, count: downloadCount };
 }
 
 module.exports = scrapeErosScans;

@@ -104,3 +104,74 @@ export function Sidebar({
     </div>
   );
 }
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+
+interface SidebarProps {
+  onSiteSelect: (url: string) => void;
+  isAdultMode: boolean;
+  setIsAdultMode: (value: boolean) => void;
+}
+
+const Sidebar = ({ onSiteSelect, isAdultMode, setIsAdultMode }: SidebarProps) => {
+  const normalSites = [
+    { name: 'AsuraScans', url: 'https://asuracomic.net' },
+    { name: 'ColaManga', url: 'https://colamanga.com' },
+  ];
+
+  const adultSites = [
+    { name: 'ErosScans', url: 'https://erosscans.com' },
+    { name: 'Nhentai', url: 'https://nhentai.net' },
+    { name: 'Hentai2Read', url: 'https://hentai2read.com' },
+    { name: 'Hitomi', url: 'https://hitomi.la' },
+  ];
+
+  return (
+    <div className="w-64 bg-card border-r p-4 flex flex-col">
+      <h2 className="text-lg font-semibold mb-4">Manga Sites</h2>
+      
+      <div className="flex items-center space-x-2 mb-4">
+        <Switch
+          id="adult-mode"
+          checked={isAdultMode}
+          onCheckedChange={setIsAdultMode}
+        />
+        <Label htmlFor="adult-mode">Adult Mode</Label>
+      </div>
+
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium text-muted-foreground">Normal Sites</h3>
+        {normalSites.map((site) => (
+          <Button
+            key={site.name}
+            variant="outline"
+            className="w-full justify-start"
+            onClick={() => onSiteSelect(site.url)}
+          >
+            {site.name}
+          </Button>
+        ))}
+
+        {isAdultMode && (
+          <>
+            <h3 className="text-sm font-medium text-muted-foreground mt-4">Adult Sites</h3>
+            {adultSites.map((site) => (
+              <Button
+                key={site.name}
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => onSiteSelect(site.url)}
+              >
+                {site.name}
+              </Button>
+            ))}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Sidebar;

@@ -538,3 +538,70 @@ export function MangaIframe({
     </div>
   );
 }
+import { useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { ArrowLeft, ArrowRight, RotateCcw, Home, ExternalLink } from 'lucide-react';
+
+interface MangaIframeProps {
+  url: string;
+  onUrlChange: (url: string) => void;
+}
+
+const MangaIframe = ({ url, onUrlChange }: MangaIframeProps) => {
+  const [inputUrl, setInputUrl] = useState(url);
+
+  const handleNavigate = () => {
+    onUrlChange(inputUrl);
+  };
+
+  const handleGoHome = () => {
+    const homeUrl = 'https://www.google.com';
+    setInputUrl(homeUrl);
+    onUrlChange(homeUrl);
+  };
+
+  return (
+    <Card className="flex-1 p-4 m-4">
+      <div className="flex items-center space-x-2 mb-4">
+        <Button variant="outline" size="sm">
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="sm">
+          <ArrowRight className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="sm">
+          <RotateCcw className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="sm" onClick={handleGoHome}>
+          <Home className="h-4 w-4" />
+        </Button>
+        <Input
+          value={inputUrl}
+          onChange={(e) => setInputUrl(e.target.value)}
+          onKeyPress={(e) => e.key === 'Enter' && handleNavigate()}
+          className="flex-1"
+          placeholder="Enter URL..."
+        />
+        <Button onClick={handleNavigate}>
+          Go
+        </Button>
+        <Button variant="outline" size="sm">
+          <ExternalLink className="h-4 w-4" />
+        </Button>
+      </div>
+      
+      <div className="border rounded-lg overflow-hidden" style={{ height: 'calc(100vh - 250px)' }}>
+        <iframe
+          src={url}
+          className="w-full h-full"
+          title="Manga Browser"
+          sandbox="allow-same-origin allow-scripts allow-forms allow-navigation"
+        />
+      </div>
+    </Card>
+  );
+};
+
+export default MangaIframe;

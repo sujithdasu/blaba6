@@ -149,3 +149,32 @@ const Index = () => {
 };
 
 export default Index;
+import { useState } from 'react';
+import Sidebar from '@/components/Sidebar';
+import MangaIframe from '@/components/MangaIframe';
+import DownloadForm from '@/components/DownloadForm';
+
+const Index = () => {
+  const [currentUrl, setCurrentUrl] = useState('https://www.google.com');
+  const [isAdultMode, setIsAdultMode] = useState(false);
+
+  const handleSiteSelect = (url: string) => {
+    setCurrentUrl(url);
+  };
+
+  return (
+    <div className="flex h-screen">
+      <Sidebar 
+        onSiteSelect={handleSiteSelect}
+        isAdultMode={isAdultMode}
+        setIsAdultMode={setIsAdultMode}
+      />
+      <div className="flex-1 flex flex-col">
+        <MangaIframe url={currentUrl} onUrlChange={setCurrentUrl} />
+        <DownloadForm currentUrl={currentUrl} />
+      </div>
+    </div>
+  );
+};
+
+export default Index;

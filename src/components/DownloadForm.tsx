@@ -365,3 +365,159 @@ export function DownloadForm({ selectedSite, selectedUrl, getCurrentUrl }: Downl
     </Card>
   );
 }
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from 'sonner';
+import { Download, Link, Clipboard } from 'lucide-react';
+
+interface DownloadFormProps {
+  currentUrl: string;
+}
+
+const DownloadForm = ({ currentUrl }: DownloadFormProps) => {
+  const [url, setUrl] = useState('');
+  const [site, setSite] = useState('');
+  const [chapterStart, setChapterStart] = useState('');
+  const [chapterEnd, setChapterEnd] = useState('');
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const sites = [
+    { value: 'erosscans', label: 'ErosScans' },
+    { value: 'asurascans', label: 'AsuraScans' },
+    { value: 'colamanga', label: 'ColaManga' },
+    { value: 'nhentai', label: 'Nhentai' },
+    { value: 'hentai2read', label: 'Hentai2Read' },
+    { value: 'hitomi', label: 'Hitomi' },
+  ];
+
+  const handleLinkFromBrowser = () => {
+    setUrl(currentUrl);
+    toast.success('URL captured from browser');
+  };
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      setUrl(text);
+      toast.success('URL pasted from clipboard');
+    } catch (err) {
+      toast.error('Failed to paste from clipboard');
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!url || !site) {
+      toast.error('Please enter URL and select site');
+      return;
+    }
+
+    setIsDownloading(true);
+    
+    try {
+      const payload: any = { url, site };
+      
+      if (chapterStart) {
+        payload.chapterStart = parseInt(chapterStart);
+        if (chapterEnd) {
+          payload.chapterEnd = parseInt(chapterEnd);
+        }
+      }
+
+      const response = await fetch('/api/scrape', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+
+      if (result.status === 'success') {
+        toast.success(`Download completed! ${result.result.count} images downloaded`);
+      } else {
+        toast.error(result.message || 'Download failed');
+      }
+    } catch (error) {
+      toast.error('Download failed: ' + (error as Error).message);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  return (
+    <Card className="m-4">
+      <CardHeader>
+        <CardTitle>Download Manager</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex space-x-2">
+          <Input
+            placeholder="Manga URL"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            className="flex-1"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleLinkFromBrowser}
+            title="Use current browser URL"
+          >
+            <Link className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePasteFromClipboard}
+            title="Paste from clipboard"
+          >
+            <Clipboard className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <Select value={site} onValueChange={setSite}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select manga site" />
+          </SelectTrigger>
+          <SelectContent>
+            {sites.map((siteOption) => (
+              <SelectItem key={siteOption.value} value={siteOption.value}>
+                {siteOption.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="flex space-x-2">
+          <Input
+            placeholder="Start Chapter (optional)"
+            value={chapterStart}
+            onChange={(e) => setChapterStart(e.target.value)}
+            type="number"
+          />
+          <Input
+            placeholder="End Chapter (optional)"
+            value={chapterEnd}
+            onChange={(e) => setChapterEnd(e.target.value)}
+            type="number"
+          />
+        </div>
+
+        <Button
+          onClick={handleDownload}
+          disabled={isDownloading || !url || !site}
+          className="w-full"
+        >
+          <Download className="h-4 w-4 mr-2" />
+          {isDownloading ? 'Downloading...' : 'Download'}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default DownloadForm;
