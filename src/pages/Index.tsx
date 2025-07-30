@@ -1,6 +1,4 @@
-` tags, preserving the original indentation and structure as much as possible.
 
-```typescript
 import React, { useState } from 'react';
 import { Sidebar } from '../components/Sidebar';
 import { MangaIframe } from '../components/MangaIframe';

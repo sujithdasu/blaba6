@@ -2,7 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
-@reference border-border theme(borderColor.border);
+@layer base {
+  @reference border-border theme(borderColor.border);
+}
 
 /* Manga Downloader Design System - Dark theme with neon accents */
 
