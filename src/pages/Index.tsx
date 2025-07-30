@@ -1,8 +1,10 @@
-import { useState } from "react";
-import { Sidebar } from "@/components/Sidebar";
-import { MangaIframe } from "@/components/MangaIframe";
-import { DownloadForm } from "@/components/DownloadForm";
-import { ToggleSwitch } from "@/components/ToggleSwitch";
+` tags, preserving the original indentation and structure as much as possible.
+
+```typescript
+import React, { useState } from 'react';
+import { Sidebar } from '../components/Sidebar';
+import { MangaIframe } from '../components/MangaIframe';
+import { DownloadForm } from '../components/DownloadForm';
 
 interface Site {
   id: string;
@@ -59,119 +61,60 @@ const MANGA_SITES: Site[] = [
 
 const Index = () => {
   const [selectedSite, setSelectedSite] = useState<string | null>(null);
-  const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
-  const [currentUrl, setCurrentUrl] = useState<string | null>(null);
-  const [previewMode, setPreviewMode] = useState(true);
-  const [adultMode, setAdultMode] = useState(false);
+  const [currentUrl, setCurrentUrl] = useState('https://www.colamanga.com');
+  const [isAdultMode, setIsAdultMode] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [iframeRef, setIframeRef] = useState<any>(null);
+  const [iframeRef, setIframeRef] = useState<HTMLIFrameElement | null>(null);
 
   const handleSiteSelect = (siteId: string, url: string) => {
     setSelectedSite(siteId);
-    setSelectedUrl(url);
     setCurrentUrl(url);
-  };
-
-  const handleUrlChange = (url: string) => {
-    setCurrentUrl(url);
-    // Auto-detect site from URL
-    const detectedSite = MANGA_SITES.find(site => 
-      url.toLowerCase().includes(site.url.replace('https://', '').replace('http://', ''))
-    );
-    if (detectedSite) {
-      setSelectedSite(detectedSite.id);
-    }
   };
 
   const getCurrentUrl = () => {
-    // Return the most current URL from the iframe
-    return currentUrl || selectedUrl || '';
+    try {
+      if (iframeRef && iframeRef.contentWindow) {
+        return iframeRef.contentWindow.location.href;
+      }
+    } catch (error) {
+      // CORS restriction, fall back to current URL state
+      console.log('Cannot access iframe URL due to CORS policy');
+    }
+    return currentUrl;
   };
 
-  const selectedSiteName = MANGA_SITES.find(site => site.id === selectedSite)?.name || null;
-
   return (
-    <div className="h-screen bg-manga-bg flex">
+    <div className="min-h-screen bg-gradient-to-br from-manga-bg via-manga-bg to-manga-surface flex">
       {/* Sidebar */}
-      <Sidebar
-        sites={MANGA_SITES}
-        selectedSite={selectedSite}
-        onSiteSelect={handleSiteSelect}
-        isAdultMode={adultMode}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-      />
+      <div className={`${sidebarCollapsed ? 'w-20' : 'w-80'} flex-shrink-0 transition-all duration-300`}>
+        <Sidebar
+          onSiteSelect={handleSiteSelect}
+          isAdultMode={isAdultMode}
+          setIsAdultMode={setIsAdultMode}
+          selectedSite={selectedSite}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        />
+      </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Top Controls */}
-        {/* Content Area */}
-        <div className="flex-1 flex h-full">
-          {/* Main Panel - Iframe */}
-          <div className="flex-1 h-full p-6">
-            <MangaIframe
-              selectedSite={selectedSiteName}
-              selectedUrl={currentUrl || selectedUrl}
-              previewMode={previewMode}
-              onTogglePreview={() => setPreviewMode(!previewMode)}
-              onUrlChange={handleUrlChange}
-            />
-          </div>
-
-          {/* Right Panel - Download Form */}
-          <div className="w-96 bg-manga-surface border-l border-manga-border p-6 space-y-6">
-            <div className="mb-6">
-              <h1 className="text-xl font-bold bg-gradient-primary bg-clip-text text-transparent mb-2">
-                Manga Downloader
-              </h1>
-              <p className="text-manga-text-muted text-sm">
-                Browse and download manga content
-              </p>
-            </div>
-            
-            <ToggleSwitch
-              adultMode={adultMode}
-              previewMode={previewMode}
-              onAdultModeChange={setAdultMode}
-              onPreviewModeChange={setPreviewMode}
-            />
-            
-            <DownloadForm 
-              selectedSite={selectedSiteName} 
-              selectedUrl={currentUrl || selectedUrl}
-              getCurrentUrl={getCurrentUrl}
-            />
-          </div>
+      <div className="flex-1 flex gap-4 p-4">
+        {/* Browser */}
+        <div className="flex-1">
+          <MangaIframe
+            url={currentUrl}
+            onUrlChange={setCurrentUrl}
+          />
         </div>
-      </div>
-    </div>
-  );
-};
 
-export default Index;
-import { useState } from 'react';
-import Sidebar from '@/components/Sidebar';
-import MangaIframe from '@/components/MangaIframe';
-import DownloadForm from '@/components/DownloadForm';
-
-const Index = () => {
-  const [currentUrl, setCurrentUrl] = useState('https://www.google.com');
-  const [isAdultMode, setIsAdultMode] = useState(false);
-
-  const handleSiteSelect = (url: string) => {
-    setCurrentUrl(url);
-  };
-
-  return (
-    <div className="flex h-screen">
-      <Sidebar 
-        onSiteSelect={handleSiteSelect}
-        isAdultMode={isAdultMode}
-        setIsAdultMode={setIsAdultMode}
-      />
-      <div className="flex-1 flex flex-col">
-        <MangaIframe url={currentUrl} onUrlChange={setCurrentUrl} />
-        <DownloadForm currentUrl={currentUrl} />
+        {/* Download Panel */}
+        <div className="w-96 flex-shrink-0">
+          <DownloadForm
+            selectedSite={selectedSite}
+            selectedUrl={currentUrl}
+            getCurrentUrl={getCurrentUrl}
+          />
+        </div>
       </div>
     </div>
   );

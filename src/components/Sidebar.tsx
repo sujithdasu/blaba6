@@ -1,177 +1,243 @@
-import { useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
-interface Site {
-  id: string;
-  name: string;
-  url: string;
-  faviconUrl: string;
-  isAdult?: boolean;
-}
+import React, { useState } from 'react';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Badge } from './ui/badge';
+import { Switch } from './ui/switch';
+import { Label } from './ui/label';
+import { Separator } from './ui/separator';
+import { ScrollArea } from './ui/scroll-area';
+import { cn } from '@/lib/utils';
+import { 
+  Search, 
+  Eye, 
+  EyeOff, 
+  ChevronLeft, 
+  ChevronRight, 
+  Filter,
+  Shield,
+  Globe
+} from 'lucide-react';
 
 interface SidebarProps {
-  sites: Site[];
-  selectedSite: string | null;
   onSiteSelect: (siteId: string, url: string) => void;
   isAdultMode: boolean;
-  collapsed: boolean;
-  onToggleCollapse: () => void;
+  setIsAdultMode: (enabled: boolean) => void;
+  selectedSite?: string;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export function Sidebar({ 
-  sites, 
-  selectedSite, 
   onSiteSelect, 
   isAdultMode, 
-  collapsed,
-  onToggleCollapse 
+  setIsAdultMode, 
+  selectedSite,
+  collapsed = false,
+  onToggleCollapse
 }: SidebarProps) {
-  const filteredSites = sites.filter(site => isAdultMode || !site.isAdult);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showAdultOnly, setShowAdultOnly] = useState(false);
+
+  const sites = [
+    {
+      id: 'colamanga',
+      name: 'ColaManga',
+      url: 'https://www.colamanga.com',
+      faviconUrl: 'https://www.colamanga.com/favicon.ico',
+      isAdult: false,
+      description: 'Popular manga reader with extensive collection'
+    },
+    {
+      id: 'asurascans',
+      name: 'AsuraScans',
+      url: 'https://asuracomic.net',
+      faviconUrl: 'https://asuracomic.net/favicon.ico',
+      isAdult: false,
+      description: 'High-quality scanlations and translations'
+    },
+    {
+      id: 'nhentai',
+      name: 'NHentai',
+      url: 'https://nhentai.net',
+      faviconUrl: 'https://nhentai.net/favicon.ico',
+      isAdult: true,
+      description: 'Adult manga and doujinshi collection'
+    },
+    {
+      id: 'hentai2read',
+      name: 'Hentai2Read',
+      url: 'https://hentai2read.com',
+      faviconUrl: 'https://hentai2read.com/favicon.ico',
+      isAdult: true,
+      description: 'Adult manga reading platform'
+    },
+    {
+      id: 'hitomi',
+      name: 'Hitomi.la',
+      url: 'https://hitomi.la',
+      faviconUrl: 'https://hitomi.la/favicon.ico',
+      isAdult: true,
+      description: 'Gallery-style adult content'
+    },
+    {
+      id: 'erosscans',
+      name: 'ErosScans',
+      url: 'https://erosscans.com',
+      faviconUrl: '/favicon.ico',
+      isAdult: true,
+      description: 'Adult manga scanlations'
+    }
+  ];
+
+  const filteredSites = sites.filter(site => {
+    const matchesSearch = site.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesAdultFilter = showAdultOnly ? site.isAdult : true;
+    const showAdult = isAdultMode || !site.isAdult;
+    
+    return matchesSearch && matchesAdultFilter && showAdult;
+  });
+
+  const adultSitesCount = sites.filter(site => site.isAdult).length;
+  const totalSitesCount = sites.length;
 
   return (
-    <div className={cn(
-      "relative bg-manga-surface border-r border-manga-border transition-all duration-300",
-      collapsed ? "w-20" : "w-64"
+    <Card className={cn(
+      "h-full flex flex-col transition-all duration-300",
+      collapsed ? "w-16" : "w-80"
     )}>
-      {/* Collapse Toggle */}
-      <Button
-        variant="manga-ghost"
-        size="sm"
-        onClick={onToggleCollapse}
-        className="absolute -right-3 top-6 z-10 h-6 w-6 rounded-full bg-manga-surface border border-manga-border hover:bg-manga-surface-hover shadow-lg"
-      >
-        {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
-      </Button>
+      <CardHeader className={cn("pb-3", collapsed && "px-2")}>
+        <div className="flex items-center justify-between">
+          {!collapsed && (
+            <CardTitle className="text-lg">Manga Sites</CardTitle>
+          )}
+          {onToggleCollapse && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onToggleCollapse}
+              className="h-8 w-8 p-0"
+            >
+              {collapsed ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <ChevronLeft className="h-4 w-4" />
+              )}
+            </Button>
+          )}
+        </div>
 
-      {/* Header */}
-      <div className="p-6 border-b border-manga-border">
         {!collapsed && (
-          <h2 className="text-lg font-semibold bg-gradient-primary bg-clip-text text-transparent">
-            Manga Sites
-          </h2>
-        )}
-      </div>
-
-      {/* Site List */}
-      <div className="p-4 space-y-3">
-        {filteredSites.map((site) => (
-          <button
-            key={site.id}
-            onClick={() => onSiteSelect(site.id, site.url)}
-            className={cn(
-              "w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200",
-              "border border-manga-border hover:border-primary/50",
-              "hover:bg-manga-surface-hover hover:shadow-glow-primary",
-              selectedSite === site.id && "bg-gradient-primary shadow-glow-primary border-primary",
-              collapsed && "justify-center p-2"
-            )}
-          >
-            <div className={cn(
-              "flex-shrink-0 rounded-lg overflow-hidden bg-white/10 border border-manga-border",
-              collapsed ? "w-8 h-8" : "w-10 h-10"
-            )}>
-              <img
-                src={site.faviconUrl}
-                alt={site.name}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.src = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" fill="%23${site.id.slice(0, 6)}" rx="4"/><text x="16" y="20" text-anchor="middle" fill="white" font-size="12" font-weight="bold">${site.name.slice(0, 2).toUpperCase()}</text></svg>`;
-                }}
+          <div className="space-y-3">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search sites..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
               />
             </div>
-            
-            {!collapsed && (
-              <div className="flex-1 text-left">
-                <div className="font-medium text-manga-text">{site.name}</div>
-                {site.isAdult && (
-                  <div className="text-xs text-accent font-medium">18+</div>
+
+            {/* Adult Mode Toggle */}
+            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                <Label htmlFor="adult-mode" className="text-sm font-medium">
+                  Adult Mode
+                </Label>
+              </div>
+              <Switch
+                id="adult-mode"
+                checked={isAdultMode}
+                onCheckedChange={setIsAdultMode}
+              />
+            </div>
+
+            {/* Filters */}
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Button
+                variant={showAdultOnly ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowAdultOnly(!showAdultOnly)}
+                disabled={!isAdultMode}
+                className="h-7 text-xs"
+              >
+                {showAdultOnly ? <EyeOff className="mr-1 h-3 w-3" /> : <Eye className="mr-1 h-3 w-3" />}
+                Adult Only
+              </Button>
+            </div>
+
+            <Separator />
+
+            {/* Stats */}
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{filteredSites.length} sites</span>
+              <span>
+                <Globe className="inline h-3 w-3 mr-1" />
+                {totalSitesCount - adultSitesCount} general, {adultSitesCount} adult
+              </span>
+            </div>
+          </div>
+        )}
+      </CardHeader>
+
+      <CardContent className={cn("flex-1 overflow-hidden", collapsed && "px-2")}>
+        <ScrollArea className="h-full">
+          {/* Site List */}
+          <div className="space-y-3">
+            {filteredSites.map((site) => (
+              <button
+                key={site.id}
+                onClick={() => onSiteSelect(site.id, site.url)}
+                className={cn(
+                  "w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200",
+                  "border border-manga-border hover:border-primary/50",
+                  "hover:bg-manga-surface-hover hover:shadow-glow-primary",
+                  selectedSite === site.id && "bg-gradient-primary shadow-glow-primary border-primary",
+                  collapsed && "justify-center p-2"
                 )}
+              >
+                <div className={cn(
+                  "flex-shrink-0 rounded-lg overflow-hidden bg-white/10 border border-manga-border",
+                  collapsed ? "w-8 h-8" : "w-10 h-10"
+                )}>
+                  <img
+                    src={site.faviconUrl}
+                    alt={site.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" fill="%23${site.id.slice(0, 6)}" rx="4"/><text x="16" y="20" text-anchor="middle" fill="white" font-size="12" font-weight="bold">${site.name.slice(0, 2).toUpperCase()}</text></svg>`;
+                    }}
+                  />
+                </div>
+                
+                {!collapsed && (
+                  <div className="flex-1 text-left">
+                    <div className="font-medium text-manga-text">{site.name}</div>
+                    {site.isAdult && (
+                      <div className="text-xs text-accent font-medium">18+</div>
+                    )}
+                  </div>
+                )}
+              </button>
+            ))}
+
+            {filteredSites.length === 0 && !collapsed && (
+              <div className="text-center py-8 text-muted-foreground">
+                <Globe className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No sites found</p>
+                <p className="text-xs">Try adjusting your search or filters</p>
               </div>
             )}
-          </button>
-        ))}
-      </div>
-
-      {/* Adult Mode Indicator (when collapsed) */}
-      {collapsed && isAdultMode && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-          <div className="w-2 h-2 bg-accent rounded-full animate-pulse"></div>
-        </div>
-      )}
-    </div>
+          </div>
+        </ScrollArea>
+      </CardContent>
+    </Card>
   );
 }
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-
-interface SidebarProps {
-  onSiteSelect: (url: string) => void;
-  isAdultMode: boolean;
-  setIsAdultMode: (value: boolean) => void;
-}
-
-const Sidebar = ({ onSiteSelect, isAdultMode, setIsAdultMode }: SidebarProps) => {
-  const normalSites = [
-    { name: 'AsuraScans', url: 'https://asuracomic.net' },
-    { name: 'ColaManga', url: 'https://colamanga.com' },
-  ];
-
-  const adultSites = [
-    { name: 'ErosScans', url: 'https://erosscans.com' },
-    { name: 'Nhentai', url: 'https://nhentai.net' },
-    { name: 'Hentai2Read', url: 'https://hentai2read.com' },
-    { name: 'Hitomi', url: 'https://hitomi.la' },
-  ];
-
-  return (
-    <div className="w-64 bg-card border-r p-4 flex flex-col">
-      <h2 className="text-lg font-semibold mb-4">Manga Sites</h2>
-      
-      <div className="flex items-center space-x-2 mb-4">
-        <Switch
-          id="adult-mode"
-          checked={isAdultMode}
-          onCheckedChange={setIsAdultMode}
-        />
-        <Label htmlFor="adult-mode">Adult Mode</Label>
-      </div>
-
-      <div className="space-y-2">
-        <h3 className="text-sm font-medium text-muted-foreground">Normal Sites</h3>
-        {normalSites.map((site) => (
-          <Button
-            key={site.name}
-            variant="outline"
-            className="w-full justify-start"
-            onClick={() => onSiteSelect(site.url)}
-          >
-            {site.name}
-          </Button>
-        ))}
-
-        {isAdultMode && (
-          <>
-            <h3 className="text-sm font-medium text-muted-foreground mt-4">Adult Sites</h3>
-            {adultSites.map((site) => (
-              <Button
-                key={site.name}
-                variant="outline"
-                className="w-full justify-start"
-                onClick={() => onSiteSelect(site.url)}
-              >
-                {site.name}
-              </Button>
-            ))}
-          </>
-        )}
-      </div>
-    </div>
-  );
-};
-
-export default Sidebar;

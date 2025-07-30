@@ -1,523 +1,439 @@
-import React from "react";
-import { useState, useEffect } from "react";
-import { Download, Link, Hash, Loader2, CheckCircle, XCircle, Clipboard } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
+import React, { useState, useEffect } from 'react';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Progress } from './ui/progress';
+import { Badge } from './ui/badge';
+import { Separator } from './ui/separator';
+import { ScrollArea } from './ui/scroll-area';
+import { toast } from '@/hooks/use-toast';
+import { 
+  Download, 
+  Link, 
+  Clipboard, 
+  FileText, 
+  CheckCircle, 
+  XCircle, 
+  Clock,
+  Trash2,
+  RefreshCw
+} from 'lucide-react';
 
 interface DownloadFormProps {
   selectedSite: string | null;
-  selectedUrl: string | null;
-  getCurrentUrl?: () => string;
+  selectedUrl: string;
+  getCurrentUrl: () => string;
 }
 
-type DownloadStatus = 'idle' | 'loading' | 'success' | 'error';
-
-// Site detection function
-const detectSiteFromUrl = (url: string): string | null => {
-  try {
-    const domain = new URL(url).hostname.toLowerCase();
-    
-    if (domain.includes('colamanga.com')) return 'ColaManga';
-    if (domain.includes('asuracomic.net') || domain.includes('asurascans.com')) return 'AsuraScans';
-    if (domain.includes('nhentai.net')) return 'NHentai';
-    if (domain.includes('hentai2read.com')) return 'Hentai2Read';
-    if (domain.includes('hitomi.la')) return 'Hitomi';
-    if (domain.includes('erosscans.com')) return 'ErosScans';
-    
-    return null;
-  } catch {
-    return null;
-  }
-};
+interface DownloadJob {
+  id: string;
+  site: string;
+  url: string;
+  startChapter?: number;
+  endChapter?: number;
+  status: 'pending' | 'downloading' | 'completed' | 'failed';
+  progress: number;
+  downloadedFiles: number;
+  totalFiles: number;
+  createdAt: Date;
+}
 
 export function DownloadForm({ selectedSite, selectedUrl, getCurrentUrl }: DownloadFormProps) {
-  const [url, setUrl] = useState("");
-  const [chapterStart, setChapterStart] = useState("");
-  const [chapterEnd, setChapterEnd] = useState("");
-  const [status, setStatus] = useState<DownloadStatus>('idle');
-  const [message, setMessage] = useState("");
-  const { toast } = useToast();
+  const [url, setUrl] = useState('');
+  const [startChapter, setStartChapter] = useState('');
+  const [endChapter, setEndChapter] = useState('');
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadJobs, setDownloadJobs] = useState<DownloadJob[]>([]);
 
-  // Auto-detect URL from clipboard on component mount
-  React.useEffect(() => {
-    const checkClipboard = async () => {
+  // Load download jobs from localStorage on component mount
+  useEffect(() => {
+    const savedJobs = localStorage.getItem('downloadJobs');
+    if (savedJobs) {
       try {
-        if (navigator.clipboard && navigator.clipboard.readText) {
-          const clipboardText = await navigator.clipboard.readText();
-          if (clipboardText && detectSiteFromUrl(clipboardText)) {
-            // Only auto-fill if the URL field is empty and clipboard contains a valid manga URL
-            if (!url.trim()) {
-              setUrl(clipboardText);
-              toast({
-                title: "URL Auto-detected",
-                description: "Found a manga URL in your clipboard and filled it automatically."
-              });
-            }
-          }
-        }
+        const parsedJobs = JSON.parse(savedJobs).map((job: any) => ({
+          ...job,
+          createdAt: new Date(job.createdAt)
+        }));
+        setDownloadJobs(parsedJobs);
       } catch (error) {
-        // Silently fail if clipboard access is denied
-        console.log('Clipboard access not available');
+        console.error('Failed to load download jobs:', error);
       }
-    };
-
-    checkClipboard();
+    }
   }, []);
 
-  // Handle paste button click
-  const handlePasteUrl = async () => {
-    try {
-      if (navigator.clipboard && navigator.clipboard.readText) {
-        const clipboardText = await navigator.clipboard.readText();
-        if (clipboardText.trim()) {
-          setUrl(clipboardText.trim());
-          toast({
-            title: "URL Pasted",
-            description: "URL has been pasted from clipboard."
-          });
-        } else {
-          toast({
-            variant: "destructive",
-            title: "Clipboard Empty",
-            description: "No text found in clipboard."
-          });
-        }
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Clipboard Access Denied",
-          description: "Unable to access clipboard. Please paste manually."
-        });
-      }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Paste Failed",
-        description: "Could not access clipboard. Please paste manually."
-      });
-    }
-  };
+  // Save download jobs to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('downloadJobs', JSON.stringify(downloadJobs));
+  }, [downloadJobs]);
 
-  // Handle getting current URL
-  const handleGetCurrentUrl = () => {
-    const currentUrl = getCurrentUrl ? getCurrentUrl() : selectedUrl;
+  const handleLinkFromBrowser = () => {
+    const currentUrl = getCurrentUrl();
     if (currentUrl) {
       setUrl(currentUrl);
       toast({
-        title: "URL Updated",
-        description: "Current webpage URL has been filled in.",
+        title: "URL Captured",
+        description: "Current browser URL has been captured for download.",
       });
     } else {
       toast({
-        variant: "destructive",
         title: "No URL Available",
-        description: "No current webpage URL is available.",
-      });
-    }
-  };
-
-  // Detect site from URL or use selected site
-  const detectedSite = url ? detectSiteFromUrl(url) : null;
-  const activeSite = detectedSite || selectedSite;
-  
-  // Sites that support chapter range
-  const supportsChapterRange = activeSite === 'ColaManga';
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!url.trim()) {
-      toast({
+        description: "Unable to capture URL from browser.",
         variant: "destructive",
-        title: "Missing URL",
-        description: "Please enter a manga URL to download."
-      });
-      return;
-    }
-
-    // Validate that we can detect the site
-    if (!activeSite) {
-      toast({
-        variant: "destructive",
-        title: "Unsupported Site",
-        description: "The URL you entered is not from a supported manga site."
-      });
-      return;
-    }
-    setStatus('loading');
-    setMessage('');
-
-    try {
-      const payload: any = { 
-        url: url.trim(),
-        site: activeSite.toLowerCase() // Send the detected/selected site
-      };
-      
-      if (supportsChapterRange && chapterStart) {
-        payload.chapterStart = parseInt(chapterStart);
-        if (chapterEnd) {
-          payload.chapterEnd = parseInt(chapterEnd);
-        }
-      }
-
-      const response = await fetch('/api/scrape', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-
-      if (data.status === 'success') {
-        setStatus('success');
-        setMessage(data.message || 'Download completed successfully!');
-        toast({
-          title: "Download Started",
-          description: `${activeSite} download has been queued successfully.`
-        });
-        
-        // Reset form after success
-        setTimeout(() => {
-          setUrl("");
-          setChapterStart("");
-          setChapterEnd("");
-          setStatus('idle');
-          setMessage("");
-        }, 3000);
-      } else {
-        setStatus('error');
-        setMessage(data.message || 'Download failed');
-        toast({
-          variant: "destructive",
-          title: "Download Failed",
-          description: data.message || "Something went wrong during the download."
-        });
-      }
-    } catch (error) {
-      setStatus('error');
-      setMessage('Network error - check if backend is running');
-      toast({
-        variant: "destructive",
-        title: "Connection Error",
-        description: "Could not connect to the download service."
       });
     }
-  };
-
-  const getStatusIcon = () => {
-    switch (status) {
-      case 'loading':
-        return <Loader2 className="w-4 h-4 animate-spin" />;
-      case 'success':
-        return <CheckCircle className="w-4 h-4 text-green-400" />;
-      case 'error':
-        return <XCircle className="w-4 h-4 text-red-400" />;
-      default:
-        return <Download className="w-4 h-4" />;
-    }
-  };
-
-  const getButtonText = () => {
-    switch (status) {
-      case 'loading':
-        return 'Downloading...';
-      case 'success':
-        return 'Downloaded!';
-      case 'error':
-        return 'Try Again';
-      default:
-        return 'Download';
-    }
-  };
-
-  return (
-    <Card className="bg-manga-surface border-manga-border">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-manga-text">
-          <Download className="w-5 h-5" />
-          Download Manga
-          {activeSite && (
-            <span className="text-sm bg-primary/20 text-primary px-2 py-1 rounded-md">
-              {activeSite}
-            </span>
-          )}
-        </CardTitle>
-      </CardHeader>
-      
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* URL Input */}
-          <div className="space-y-2">
-            <Label htmlFor="url" className="text-manga-text flex items-center gap-2">
-              <Link className="w-4 h-4" />
-              Manga URL
-              {detectedSite && (
-                <span className="text-xs text-accent">
-                  ({detectedSite} detected)
-                </span>
-              )}
-            </Label>
-            <div className="relative">
-              <Input
-                id="url"
-                type="url"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="https://example.com/manga/title"
-                className="bg-manga-bg border-manga-border text-manga-text placeholder:text-manga-text-muted focus:border-primary focus:ring-primary pr-20"
-                disabled={status === 'loading'}
-              />
-              <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-1">
-                <Button
-                  type="button"
-                  variant="manga-ghost"
-                  size="sm"
-                  onClick={handlePasteUrl}
-                  disabled={status === 'loading'}
-                  className="h-8 w-8 p-0 rounded-full hover:bg-manga-surface-hover"
-                  title="Paste from clipboard"
-                >
-                  <Clipboard className="w-3.5 h-3.5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="manga-ghost"
-                  size="sm"
-                  onClick={handleGetCurrentUrl}
-                  disabled={status === 'loading'}
-                  className="h-8 w-8 p-0 rounded-full hover:bg-manga-surface-hover"
-                  title="Get current webpage URL"
-                >
-                  <Link className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* Chapter Range (conditional) */}
-          {supportsChapterRange && (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="chapterStart" className="text-manga-text flex items-center gap-2">
-                  <Hash className="w-4 h-4" />
-                  Start Chapter
-                </Label>
-                <Input
-                  id="chapterStart"
-                  type="number"
-                  value={chapterStart}
-                  onChange={(e) => setChapterStart(e.target.value)}
-                  placeholder="1"
-                  min="1"
-                  className="bg-manga-bg border-manga-border text-manga-text placeholder:text-manga-text-muted focus:border-primary focus:ring-primary"
-                  disabled={status === 'loading'}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="chapterEnd" className="text-manga-text flex items-center gap-2">
-                  <Hash className="w-4 h-4" />
-                  End Chapter
-                </Label>
-                <Input
-                  id="chapterEnd"
-                  type="number"
-                  value={chapterEnd}
-                  onChange={(e) => setChapterEnd(e.target.value)}
-                  placeholder="Latest"
-                  min={chapterStart || "1"}
-                  className="bg-manga-bg border-manga-border text-manga-text placeholder:text-manga-text-muted focus:border-primary focus:ring-primary"
-                  disabled={status === 'loading'}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Download Button */}
-          <Button
-            type="submit"
-            disabled={status === 'loading' || !url.trim()}
-            variant="manga"
-            className="w-full"
-          >
-            {getStatusIcon()}
-            {getButtonText()}
-          </Button>
-
-          {/* Status Message */}
-          {message && (
-            <div className={`text-sm p-3 rounded-lg border ${
-              status === 'success' 
-                ? 'bg-green-500/10 border-green-500/30 text-green-400'
-                : status === 'error'
-                ? 'bg-red-500/10 border-red-500/30 text-red-400'
-                : 'bg-manga-surface border-manga-border text-manga-text'
-            }`}>
-              {message}
-            </div>
-          )}
-        </form>
-      </CardContent>
-    </Card>
-  );
-}
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { toast } from 'sonner';
-import { Download, Link, Clipboard } from 'lucide-react';
-
-interface DownloadFormProps {
-  currentUrl: string;
-}
-
-const DownloadForm = ({ currentUrl }: DownloadFormProps) => {
-  const [url, setUrl] = useState('');
-  const [site, setSite] = useState('');
-  const [chapterStart, setChapterStart] = useState('');
-  const [chapterEnd, setChapterEnd] = useState('');
-  const [isDownloading, setIsDownloading] = useState(false);
-
-  const sites = [
-    { value: 'erosscans', label: 'ErosScans' },
-    { value: 'asurascans', label: 'AsuraScans' },
-    { value: 'colamanga', label: 'ColaManga' },
-    { value: 'nhentai', label: 'Nhentai' },
-    { value: 'hentai2read', label: 'Hentai2Read' },
-    { value: 'hitomi', label: 'Hitomi' },
-  ];
-
-  const handleLinkFromBrowser = () => {
-    setUrl(currentUrl);
-    toast.success('URL captured from browser');
   };
 
   const handlePasteFromClipboard = async () => {
     try {
-      const text = await navigator.clipboard.readText();
-      setUrl(text);
-      toast.success('URL pasted from clipboard');
-    } catch (err) {
-      toast.error('Failed to paste from clipboard');
+      const clipboardText = await navigator.clipboard.readText();
+      if (clipboardText && clipboardText.startsWith('http')) {
+        setUrl(clipboardText);
+        toast({
+          title: "URL Pasted",
+          description: "URL has been pasted from clipboard.",
+        });
+      } else {
+        toast({
+          title: "Invalid URL",
+          description: "Clipboard doesn't contain a valid URL.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Clipboard Error",
+        description: "Unable to access clipboard. Please paste manually.",
+        variant: "destructive",
+      });
     }
   };
 
+  const addDownloadJob = (site: string, url: string, startChapter?: number, endChapter?: number) => {
+    const newJob: DownloadJob = {
+      id: Date.now().toString(),
+      site,
+      url,
+      startChapter,
+      endChapter,
+      status: 'pending',
+      progress: 0,
+      downloadedFiles: 0,
+      totalFiles: 0,
+      createdAt: new Date()
+    };
+
+    setDownloadJobs(prev => [newJob, ...prev]);
+    return newJob.id;
+  };
+
+  const updateDownloadJob = (id: string, updates: Partial<DownloadJob>) => {
+    setDownloadJobs(prev => prev.map(job => 
+      job.id === id ? { ...job, ...updates } : job
+    ));
+  };
+
+  const removeDownloadJob = (id: string) => {
+    setDownloadJobs(prev => prev.filter(job => job.id !== id));
+  };
+
   const handleDownload = async () => {
-    if (!url || !site) {
-      toast.error('Please enter URL and select site');
+    if (!url) {
+      toast({
+        title: "URL Required",
+        description: "Please enter a URL to download.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedSite) {
+      toast({
+        title: "Site Required",
+        description: "Please select a manga site first.",
+        variant: "destructive",
+      });
       return;
     }
 
     setIsDownloading(true);
-    
-    try {
-      const payload: any = { url, site };
-      
-      if (chapterStart) {
-        payload.chapterStart = parseInt(chapterStart);
-        if (chapterEnd) {
-          payload.chapterEnd = parseInt(chapterEnd);
-        }
-      }
 
-      const response = await fetch('/api/scrape', {
+    const jobId = addDownloadJob(
+      selectedSite,
+      url,
+      startChapter ? parseInt(startChapter) : undefined,
+      endChapter ? parseInt(endChapter) : undefined
+    );
+
+    try {
+      updateDownloadJob(jobId, { status: 'downloading' });
+
+      const response = await fetch('/api/download', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          site: selectedSite,
+          url: url,
+          startChapter: startChapter ? parseInt(startChapter) : undefined,
+          endChapter: endChapter ? parseInt(endChapter) : undefined
+        }),
       });
 
-      const result = await response.json();
-
-      if (result.status === 'success') {
-        toast.success(`Download completed! ${result.result.count} images downloaded`);
-      } else {
-        toast.error(result.message || 'Download failed');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+
+                if (data.progress !== undefined) {
+                  updateDownloadJob(jobId, { 
+                    progress: data.progress,
+                    downloadedFiles: data.downloadedFiles || 0,
+                    totalFiles: data.totalFiles || 0
+                  });
+                }
+
+                if (data.status) {
+                  updateDownloadJob(jobId, { status: data.status });
+                }
+              } catch (e) {
+                // Ignore parsing errors for partial data
+              }
+            }
+          }
+        }
+      }
+
+      updateDownloadJob(jobId, { status: 'completed', progress: 100 });
+
+      toast({
+        title: "Download Complete",
+        description: "Manga has been downloaded successfully.",
+      });
+
+      // Reset form
+      setUrl('');
+      setStartChapter('');
+      setEndChapter('');
+
     } catch (error) {
-      toast.error('Download failed: ' + (error as Error).message);
+      console.error('Download error:', error);
+      updateDownloadJob(jobId, { status: 'failed' });
+
+      toast({
+        title: "Download Failed",
+        description: "Failed to download manga. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsDownloading(false);
     }
   };
 
+  const getStatusIcon = (status: DownloadJob['status']) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'failed':
+        return <XCircle className="h-4 w-4 text-red-500" />;
+      case 'downloading':
+        return <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />;
+      default:
+        return <Clock className="h-4 w-4 text-yellow-500" />;
+    }
+  };
+
+  const getStatusColor = (status: DownloadJob['status']) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-500';
+      case 'failed':
+        return 'bg-red-500';
+      case 'downloading':
+        return 'bg-blue-500';
+      default:
+        return 'bg-yellow-500';
+    }
+  };
+
+  const canShowChapterRange = selectedSite === 'colamanga';
+
   return (
-    <Card className="m-4">
-      <CardHeader>
-        <CardTitle>Download Manager</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex space-x-2">
-          <Input
-            placeholder="Manga URL"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            className="flex-1"
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleLinkFromBrowser}
-            title="Use current browser URL"
+    <div className="space-y-6">
+      {/* Download Form */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Download className="h-5 w-5" />
+            Download Manager
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="url">Manga URL</Label>
+            <div className="flex gap-2">
+              <Input
+                id="url"
+                type="url"
+                placeholder="Enter manga URL..."
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                className="flex-1"
+                disabled={isDownloading}
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleLinkFromBrowser}
+                disabled={isDownloading}
+                title="Capture current browser URL"
+              >
+                <Link className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handlePasteFromClipboard}
+                disabled={isDownloading}
+                title="Paste from clipboard"
+              >
+                <Clipboard className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {canShowChapterRange && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="startChapter">Start Chapter (Optional)</Label>
+                <Input
+                  id="startChapter"
+                  type="number"
+                  placeholder="e.g., 1"
+                  value={startChapter}
+                  onChange={(e) => setStartChapter(e.target.value)}
+                  disabled={isDownloading}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="endChapter">End Chapter (Optional)</Label>
+                <Input
+                  id="endChapter"
+                  type="number"
+                  placeholder="e.g., 10"
+                  value={endChapter}
+                  onChange={(e) => setEndChapter(e.target.value)}
+                  disabled={isDownloading}
+                />
+              </div>
+            </div>
+          )}
+
+          <Button 
+            onClick={handleDownload} 
+            disabled={isDownloading || !url || !selectedSite}
+            className="w-full"
           >
-            <Link className="h-4 w-4" />
+            {isDownloading ? (
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
+            {isDownloading ? 'Downloading...' : 'Download'}
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePasteFromClipboard}
-            title="Paste from clipboard"
-          >
-            <Clipboard className="h-4 w-4" />
-          </Button>
-        </div>
 
-        <Select value={site} onValueChange={setSite}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select manga site" />
-          </SelectTrigger>
-          <SelectContent>
-            {sites.map((siteOption) => (
-              <SelectItem key={siteOption.value} value={siteOption.value}>
-                {siteOption.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          {!selectedSite && (
+            <p className="text-sm text-muted-foreground text-center">
+              Please select a manga site from the sidebar first
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
-        <div className="flex space-x-2">
-          <Input
-            placeholder="Start Chapter (optional)"
-            value={chapterStart}
-            onChange={(e) => setChapterStart(e.target.value)}
-            type="number"
-          />
-          <Input
-            placeholder="End Chapter (optional)"
-            value={chapterEnd}
-            onChange={(e) => setChapterEnd(e.target.value)}
-            type="number"
-          />
-        </div>
+      {/* Download History */}
+      {downloadJobs.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Download History
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-96">
+              <div className="space-y-3">
+                {downloadJobs.map((job) => (
+                  <div key={job.id} className="p-3 border rounded-lg space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(job.status)}
+                        <Badge variant="outline" className="capitalize">
+                          {job.site}
+                        </Badge>
+                        <Badge 
+                          variant="secondary" 
+                          className={`text-white ${getStatusColor(job.status)}`}
+                        >
+                          {job.status}
+                        </Badge>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeDownloadJob(job.id)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
 
-        <Button
-          onClick={handleDownload}
-          disabled={isDownloading || !url || !site}
-          className="w-full"
-        >
-          <Download className="h-4 w-4 mr-2" />
-          {isDownloading ? 'Downloading...' : 'Download'}
-        </Button>
-      </CardContent>
-    </Card>
+                    <div className="text-sm text-muted-foreground truncate">
+                      {job.url}
+                    </div>
+
+                    {(job.startChapter || job.endChapter) && (
+                      <div className="text-xs text-muted-foreground">
+                        Chapters: {job.startChapter || '?'} - {job.endChapter || '?'}
+                      </div>
+                    )}
+
+                    {job.status === 'downloading' && (
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs">
+                          <span>{job.downloadedFiles} / {job.totalFiles} files</span>
+                          <span>{job.progress}%</span>
+                        </div>
+                        <Progress value={job.progress} className="h-2" />
+                      </div>
+                    )}
+
+                    <div className="text-xs text-muted-foreground">
+                      {job.createdAt.toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
-};
-
-export default DownloadForm;
+}

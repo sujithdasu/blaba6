@@ -1,16 +1,26 @@
-import { useState, useRef, useEffect } from "react";
-import { RefreshCw, ExternalLink, Eye, EyeOff, Home, Star, Settings, Shield, Download, Bookmark, History, MoreVertical } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
+import React, { useState, useEffect, useRef } from 'react';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Badge } from './ui/badge';
+import { Card, CardContent } from './ui/card';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
+import { toast } from '@/hooks/use-toast';
+import { 
+  ArrowLeft, 
+  ArrowRight, 
+  RotateCcw, 
+  Home, 
+  Bookmark, 
+  History, 
+  ZoomIn, 
+  ZoomOut, 
+  MoreVertical,
+  ExternalLink,
+  Copy
+} from 'lucide-react';
 
 interface MangaIframeProps {
-  selectedSite: string | null;
-  selectedUrl: string | null;
-  previewMode: boolean;
-  onTogglePreview: () => void;
+  url: string;
   onUrlChange: (url: string) => void;
 }
 
@@ -20,588 +30,438 @@ interface HistoryItem {
   timestamp: Date;
 }
 
-interface Bookmark {
+interface BookmarkItem {
   url: string;
   title: string;
   favicon?: string;
 }
 
 export function MangaIframe({ 
-  selectedSite, 
-  selectedUrl, 
-  previewMode, 
-  onTogglePreview,
-  onUrlChange
+  url, 
+  onUrlChange 
 }: MangaIframeProps) {
+  const [currentUrl, setCurrentUrl] = useState(url);
+  const [inputUrl, setInputUrl] = useState(url);
   const [isLoading, setIsLoading] = useState(false);
-  const [iframeKey, setIframeKey] = useState(0);
-  const [currentUrl, setCurrentUrl] = useState(selectedUrl || "");
-  const [inputUrl, setInputUrl] = useState(selectedUrl || "");
-  const [isSecure, setIsSecure] = useState(false);
-  const [pageTitle, setPageTitle] = useState("");
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
-  const [showDevTools, setShowDevTools] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(100);
+  const [zoom, setZoom] = useState(100);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [bookmarks, setBookmarks] = useState<BookmarkItem[]>([]);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  // Load bookmarks and history from localStorage
   useEffect(() => {
-    if (selectedUrl) {
-      setCurrentUrl(selectedUrl);
-      setInputUrl(selectedUrl);
-      setIsSecure(selectedUrl.startsWith('https://'));
+    const savedBookmarks = localStorage.getItem('mangaBrowserBookmarks');
+    const savedHistory = localStorage.getItem('mangaBrowserHistory');
+
+    if (savedBookmarks) {
+      try {
+        setBookmarks(JSON.parse(savedBookmarks));
+      } catch (error) {
+        console.error('Failed to load bookmarks:', error);
+      }
     }
-  }, [selectedUrl]);
+
+    if (savedHistory) {
+      try {
+        const parsedHistory = JSON.parse(savedHistory).map((item: any) => ({
+          ...item,
+          timestamp: new Date(item.timestamp)
+        }));
+        setHistory(parsedHistory);
+      } catch (error) {
+        console.error('Failed to load history:', error);
+      }
+    }
+  }, []);
+
+  // Save bookmarks to localStorage
+  useEffect(() => {
+    localStorage.setItem('mangaBrowserBookmarks', JSON.stringify(bookmarks));
+  }, [bookmarks]);
+
+  // Save history to localStorage
+  useEffect(() => {
+    localStorage.setItem('mangaBrowserHistory', JSON.stringify(history));
+  }, [history]);
 
   useEffect(() => {
-    const checkIframeUrl = () => {
-      if (iframeRef.current && iframeRef.current.contentWindow) {
-        try {
-          const iframeUrl = iframeRef.current.contentWindow.location.href;
-          const iframeTitle = iframeRef.current.contentDocument?.title || selectedSite || "Untitled";
-          
-          if (iframeUrl && iframeUrl !== currentUrl && iframeUrl !== 'about:blank') {
-            setCurrentUrl(iframeUrl);
-            setInputUrl(iframeUrl);
-            setPageTitle(iframeTitle);
-            setIsSecure(iframeUrl.startsWith('https://'));
-            onUrlChange(iframeUrl);
-            
-            setHistory(prev => {
-              const newItem: HistoryItem = {
-                url: iframeUrl,
-                title: iframeTitle,
-                timestamp: new Date()
-              };
-              return [newItem, ...prev.slice(0, 49)]; 
-            });
-          }
-        } catch (error) {
-          
-        }
-      }
+    setCurrentUrl(url);
+    setInputUrl(url);
+  }, [url]);
+
+  const addToHistory = (url: string, title: string = '') => {
+    const newItem: HistoryItem = {
+      url,
+      title: title || getDomainFromUrl(url),
+      timestamp: new Date()
     };
 
-    const interval = setInterval(checkIframeUrl, 1000);
-    
-    const iframe = iframeRef.current;
-    if (iframe) {
-      iframe.addEventListener('load', checkIframeUrl);
-    }
-
-    return () => {
-      clearInterval(interval);
-      if (iframe) {
-        iframe.removeEventListener('load', checkIframeUrl);
-      }
-    };
-  }, [currentUrl, onUrlChange, selectedSite]);
-
-  const handleUrlSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (inputUrl.trim()) {
-      let url = inputUrl.trim();
-      
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        if (url.includes('.')) {
-          url = `https://${url}`;
-        } else {
-          url = `https://www.google.com/search?q=${encodeURIComponent(url)}`;
-        }
-      }
-      
-      setCurrentUrl(url);
-      setInputUrl(url);
-      setIsSecure(url.startsWith('https://'));
-      onUrlChange(url);
-      setIsLoading(true);
-      setIframeKey(prev => prev + 1);
-    }
-  };
-
-  const handleRefresh = () => {
-    setIsLoading(true);
-    setIframeKey(prev => prev + 1);
-  };
-
-  const handleIframeLoad = () => {
-    setIsLoading(false);
-    
-    setTimeout(() => {
-      if (iframeRef.current && iframeRef.current.contentWindow) {
-        try {
-          const iframeUrl = iframeRef.current.contentWindow.location.href;
-          const iframeTitle = iframeRef.current.contentDocument?.title || selectedSite || "Untitled";
-          
-          if (iframeUrl && iframeUrl !== currentUrl && iframeUrl !== 'about:blank') {
-            setCurrentUrl(iframeUrl);
-            setInputUrl(iframeUrl);
-            setPageTitle(iframeTitle);
-            setIsSecure(iframeUrl.startsWith('https://'));
-            onUrlChange(iframeUrl);
-          }
-          
-          setCanGoBack(iframeRef.current.contentWindow.history.length > 1);
-          setCanGoForward(false); 
-        } catch (error) {
-          
-        }
-      }
-    }, 500);
-  };
-
-  const openInNewTab = () => {
-    if (currentUrl) {
-      window.open(currentUrl, '_blank');
-    }
-  };
-
-  const handleGoBack = () => {
-    if (iframeRef.current && iframeRef.current.contentWindow) {
-      try {
-        iframeRef.current.contentWindow.history.back();
-        setCanGoForward(true);
-      } catch (error) {
-        console.log('Cannot access iframe history due to CORS policy');
-      }
-    }
-  };
-
-  const handleGoForward = () => {
-    if (iframeRef.current && iframeRef.current.contentWindow) {
-      try {
-        iframeRef.current.contentWindow.history.forward();
-      } catch (error) {
-        console.log('Cannot access iframe history due to CORS policy');
-      }
-    }
-  };
-
-  const handleGoHome = () => {
-    if (selectedUrl) {
-      setCurrentUrl(selectedUrl);
-      setInputUrl(selectedUrl);
-      onUrlChange(selectedUrl);
-      setIsLoading(true);
-      setIframeKey(prev => prev + 1);
-    }
+    setHistory(prev => {
+      // Remove duplicate if exists
+      const filtered = prev.filter(item => item.url !== url);
+      // Add to beginning and limit to 50 items
+      return [newItem, ...filtered].slice(0, 50);
+    });
   };
 
   const addBookmark = () => {
-    if (currentUrl && pageTitle) {
-      const newBookmark: Bookmark = {
-        url: currentUrl,
-        title: pageTitle || currentUrl,
-        favicon: `${new URL(currentUrl).origin}/favicon.ico`
-      };
-      
-      setBookmarks(prev => {
-        if (!prev.find(b => b.url === currentUrl)) {
-          return [newBookmark, ...prev];
-        }
+    const title = getDomainFromUrl(currentUrl);
+    const newBookmark: BookmarkItem = {
+      url: currentUrl,
+      title,
+      favicon: `${new URL(currentUrl).origin}/favicon.ico`
+    };
+
+    setBookmarks(prev => {
+      // Check if bookmark already exists
+      if (prev.some(bookmark => bookmark.url === currentUrl)) {
+        toast({
+          title: "Already Bookmarked",
+          description: "This page is already in your bookmarks.",
+        });
         return prev;
+      }
+
+      toast({
+        title: "Bookmark Added",
+        description: `Added ${title} to bookmarks.`,
+      });
+
+      return [newBookmark, ...prev].slice(0, 20); // Limit to 20 bookmarks
+    });
+  };
+
+  const removeBookmark = (url: string) => {
+    setBookmarks(prev => prev.filter(bookmark => bookmark.url !== url));
+    toast({
+      title: "Bookmark Removed",
+      description: "Bookmark has been removed.",
+    });
+  };
+
+  const handleUrlSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputUrl) {
+      let processedUrl = inputUrl;
+
+      // Add protocol if missing
+      if (!processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
+        processedUrl = 'https://' + processedUrl;
+      }
+
+      setCurrentUrl(processedUrl);
+      setIsLoading(true);
+      onUrlChange(processedUrl);
+      addToHistory(processedUrl);
+    }
+  };
+
+  const handleNavigation = (action: 'back' | 'forward' | 'reload' | 'home') => {
+    const iframe = iframeRef.current;
+    if (!iframe || !iframe.contentWindow) return;
+
+    try {
+      switch (action) {
+        case 'back':
+          iframe.contentWindow.history.back();
+          break;
+        case 'forward':
+          iframe.contentWindow.history.forward();
+          break;
+        case 'reload':
+          iframe.contentWindow.location.reload();
+          break;
+        case 'home':
+          const homeUrl = getHomeUrl(currentUrl);
+          setCurrentUrl(homeUrl);
+          setInputUrl(homeUrl);
+          onUrlChange(homeUrl);
+          addToHistory(homeUrl);
+          break;
+      }
+    } catch (error) {
+      console.error('Navigation error:', error);
+      toast({
+        title: "Navigation Error",
+        description: "Unable to perform navigation action.",
+        variant: "destructive",
       });
     }
   };
 
-  const navigateToBookmark = (bookmark: Bookmark) => {
-    setCurrentUrl(bookmark.url);
-    setInputUrl(bookmark.url);
-    onUrlChange(bookmark.url);
-    setIsLoading(true);
-    setIframeKey(prev => prev + 1);
-  };
-
-  const navigateToHistoryItem = (item: HistoryItem) => {
-    setCurrentUrl(item.url);
-    setInputUrl(item.url);
-    onUrlChange(item.url);
-    setIsLoading(true);
-    setIframeKey(prev => prev + 1);
-  };
-
   const handleZoom = (direction: 'in' | 'out' | 'reset') => {
-    if (direction === 'reset') {
-      setZoomLevel(100);
-    } else if (direction === 'in' && zoomLevel < 200) {
-      setZoomLevel(prev => prev + 10);
-    } else if (direction === 'out' && zoomLevel > 50) {
-      setZoomLevel(prev => prev - 10);
+    let newZoom = zoom;
+
+    switch (direction) {
+      case 'in':
+        newZoom = Math.min(zoom + 25, 200);
+        break;
+      case 'out':
+        newZoom = Math.max(zoom - 25, 50);
+        break;
+      case 'reset':
+        newZoom = 100;
+        break;
     }
+
+    setZoom(newZoom);
+  };
+
+  const copyCurrentUrl = () => {
+    navigator.clipboard.writeText(currentUrl).then(() => {
+      toast({
+        title: "URL Copied",
+        description: "Current URL has been copied to clipboard.",
+      });
+    }).catch(() => {
+      toast({
+        title: "Copy Failed",
+        description: "Unable to copy URL to clipboard.",
+        variant: "destructive",
+      });
+    });
+  };
+
+  const openInNewTab = () => {
+    window.open(currentUrl, '_blank');
   };
 
   const getDomainFromUrl = (url: string) => {
     try {
-      return new URL(url).hostname;
+      return new URL(url).hostname.replace('www.', '');
     } catch {
       return url;
     }
   };
 
-  if (!previewMode) {
-    return (
-      <div className="h-full flex items-center justify-center bg-manga-bg rounded-lg border border-manga-border">
-        <div className="text-center space-y-4">
-          <div className="w-24 h-24 mx-auto bg-manga-surface rounded-2xl flex items-center justify-center border border-manga-border">
-            <EyeOff className="w-12 h-12 text-manga-text-muted" />
-          </div>
-          <div>
-            <h3 className="text-xl font-semibold text-manga-text mb-2">Preview Disabled</h3>
-            <p className="text-manga-text-muted max-w-md">
-              Preview mode is turned off. Enable it to browse manga sites directly in the interface.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const getHomeUrl = (url: string) => {
+    try {
+      const urlObj = new URL(url);
+      return `${urlObj.protocol}//${urlObj.host}`;
+    } catch {
+      return url;
+    }
+  };
 
-  if (!selectedSite || !currentUrl) {
-    return (
-      <div className="h-full flex items-center justify-center bg-manga-bg rounded-lg border border-manga-border">
-        <div className="text-center space-y-4">
-          <div className="w-24 h-24 mx-auto bg-manga-surface rounded-2xl flex items-center justify-center border border-manga-border">
-            <Eye className="w-12 h-12 text-manga-text-muted" />
-          </div>
-          <div>
-            <h3 className="text-xl font-semibold text-manga-text mb-2">Select a Site</h3>
-            <p className="text-manga-text-muted max-w-md">
-              Choose a manga site from the sidebar to start browsing and finding content to download.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const isBookmarked = bookmarks.some(bookmark => bookmark.url === currentUrl);
 
   return (
-    <div className="h-full flex flex-col bg-manga-bg rounded-lg border border-manga-border overflow-hidden">
-      <div className="flex flex-col gap-2 p-3 bg-manga-surface border-b border-manga-border">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1">
-            <Button
-              variant="manga-ghost"
-              size="sm"
-              onClick={handleGoBack}
-              disabled={isLoading || !canGoBack}
-              title="Go Back"
-              className="h-8 w-8 p-0"
-            >
-              ←
-            </Button>
-            <Button
-              variant="manga-ghost"
-              size="sm"
-              onClick={handleGoForward}
-              disabled={isLoading || !canGoForward}
-              title="Go Forward"
-              className="h-8 w-8 p-0"
-            >
-              →
-            </Button>
-            <Button
-              variant="manga-ghost"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isLoading}
-              title="Refresh"
-              className="h-8 w-8 p-0"
-            >
-              <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
-            </Button>
-            <Button
-              variant="manga-ghost"
-              size="sm"
-              onClick={handleGoHome}
-              disabled={isLoading}
-              title="Home"
-              className="h-8 w-8 p-0"
-            >
-              <Home className="w-4 h-4" />
-            </Button>
-          </div>
-          
-          <div className="flex items-center gap-1">
-            <Button
-              variant="manga-ghost"
-              size="sm"
-              onClick={addBookmark}
-              title="Bookmark this page"
-              className="h-8 w-8 p-0"
-            >
-              <Star className={cn("w-4 h-4", bookmarks.find(b => b.url === currentUrl) && "fill-yellow-400 text-yellow-400")} />
-            </Button>
-            
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="manga-ghost" size="sm" className="h-8 w-8 p-0">
-                  <History className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
-                <div className="p-2 font-semibold text-sm">Recent History</div>
-                <DropdownMenuSeparator />
-                {history.length === 0 ? (
-                  <div className="p-2 text-sm text-muted-foreground">No history yet</div>
-                ) : (
-                  history.slice(0, 10).map((item, index) => (
-                    <DropdownMenuItem
-                      key={index}
-                      onClick={() => navigateToHistoryItem(item)}
-                      className="flex flex-col items-start p-2 cursor-pointer"
-                    >
-                      <div className="font-medium text-sm truncate w-full">{item.title}</div>
-                      <div className="text-xs text-muted-foreground truncate w-full">{getDomainFromUrl(item.url)}</div>
-                    </DropdownMenuItem>
-                  ))
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="manga-ghost" size="sm" className="h-8 w-8 p-0">
-                  <Bookmark className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto">
-                <div className="p-2 font-semibold text-sm">Bookmarks</div>
-                <DropdownMenuSeparator />
-                {bookmarks.length === 0 ? (
-                  <div className="p-2 text-sm text-muted-foreground">No bookmarks yet</div>
-                ) : (
-                  bookmarks.map((bookmark, index) => (
-                    <DropdownMenuItem
-                      key={index}
-                      onClick={() => navigateToBookmark(bookmark)}
-                      className="flex items-center gap-2 p-2 cursor-pointer"
-                    >
-                      <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                      <div className="flex flex-col flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate">{bookmark.title}</div>
-                        <div className="text-xs text-muted-foreground truncate">{getDomainFromUrl(bookmark.url)}</div>
-                      </div>
-                    </DropdownMenuItem>
-                  ))
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="manga-ghost" size="sm" className="h-8 w-8 p-0">
-                  <MoreVertical className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleZoom('in')}>
-                  Zoom In ({zoomLevel}%)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleZoom('out')}>
-                  Zoom Out ({zoomLevel}%)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleZoom('reset')}>
-                  Reset Zoom
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setShowDevTools(!showDevTools)}>
-                  {showDevTools ? 'Hide' : 'Show'} Developer Tools
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={openInNewTab}>
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Open in New Tab
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-        
-        <form onSubmit={handleUrlSubmit} className="flex items-center gap-2">
-          <div className="flex items-center gap-1 px-3 py-2 bg-manga-bg border border-manga-border rounded-md flex-1">
+    <div className="flex flex-col h-full bg-background">
+      {/* Browser Controls */}
+      <Card className="mb-4">
+        <CardContent className="p-3">
+          {/* Navigation Bar */}
+          <div className="flex items-center gap-2 mb-3">
             <div className="flex items-center gap-1">
-              {isSecure ? (
-                <Shield className="w-4 h-4 text-green-500" title="Secure connection" />
-              ) : (
-                <Shield className="w-4 h-4 text-orange-500" title="Not secure" />
-              )}
-              <span className="text-xs text-manga-text-muted">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleNavigation('back')}
+                disabled={!canGoBack}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleNavigation('forward')}
+                disabled={!canGoForward}
+              >
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleNavigation('reload')}
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleNavigation('home')}
+              >
+                <Home className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* URL Bar */}
+            <form onSubmit={handleUrlSubmit} className="flex-1 flex items-center gap-2">
+              <Input
+                type="url"
+                value={inputUrl}
+                onChange={(e) => setInputUrl(e.target.value)}
+                placeholder="Enter URL..."
+                className="flex-1"
+              />
+              <Button type="submit" size="sm">
+                Go
+              </Button>
+            </form>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={addBookmark}
+                disabled={isBookmarked}
+                title={isBookmarked ? "Already bookmarked" : "Add bookmark"}
+              >
+                <Bookmark className={`h-4 w-4 ${isBookmarked ? 'fill-current' : ''}`} />
+              </Button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <History className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-80">
+                  <div className="p-2 font-medium">Recent History</div>
+                  <DropdownMenuSeparator />
+                  {history.length === 0 ? (
+                    <div className="p-4 text-sm text-muted-foreground text-center">
+                      No browsing history yet
+                    </div>
+                  ) : (
+                    history.slice(0, 10).map((item, index) => (
+                      <DropdownMenuItem
+                        key={index}
+                        onClick={() => {
+                          setCurrentUrl(item.url);
+                          setInputUrl(item.url);
+                          onUrlChange(item.url);
+                        }}
+                        className="flex flex-col items-start p-3 cursor-pointer"
+                      >
+                        <div className="font-medium truncate w-full">{item.title}</div>
+                        <div className="text-xs text-muted-foreground truncate w-full">{getDomainFromUrl(item.url)}</div>
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Bookmark className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-80">
+                  <div className="p-2 font-medium">Bookmarks</div>
+                  <DropdownMenuSeparator />
+                  {bookmarks.length === 0 ? (
+                    <div className="p-4 text-sm text-muted-foreground text-center">
+                      No bookmarks yet
+                    </div>
+                  ) : (
+                    bookmarks.map((bookmark, index) => (
+                      <DropdownMenuItem
+                        key={index}
+                        onClick={() => {
+                          setCurrentUrl(bookmark.url);
+                          setInputUrl(bookmark.url);
+                          onUrlChange(bookmark.url);
+                        }}
+                        className="flex flex-col items-start p-3 cursor-pointer"
+                      >
+                        <div className="font-medium truncate w-full">{bookmark.title}</div>
+                        <div className="text-xs text-muted-foreground truncate w-full">{getDomainFromUrl(bookmark.url)}</div>
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={copyCurrentUrl}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copy URL
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={openInNewTab}>
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Open in New Tab
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleZoom('in')}>
+                    <ZoomIn className="mr-2 h-4 w-4" />
+                    Zoom In ({zoom}%)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleZoom('out')}>
+                    <ZoomOut className="mr-2 h-4 w-4" />
+                    Zoom Out ({zoom}%)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleZoom('reset')}>
+                    Reset Zoom
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+
+          {/* Status Bar */}
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-xs">
                 {getDomainFromUrl(currentUrl)}
-              </span>
+              </Badge>
+              {isLoading && (
+                <Badge variant="outline" className="text-xs">
+                  Loading...
+                </Badge>
+              )}
             </div>
-            <Input
-              type="url"
-              value={inputUrl}
-              onChange={(e) => setInputUrl(e.target.value)}
-              placeholder="Search or enter URL..."
-              className="flex-1 border-0 bg-transparent text-manga-text placeholder:text-manga-text-muted focus:ring-0 focus:outline-none p-0 h-auto"
-              disabled={isLoading}
-            />
-          </div>
-          <Button
-            type="submit"
-            variant="manga"
-            size="sm"
-            disabled={isLoading || !inputUrl.trim()}
-          >
-            Go
-          </Button>
-        </form>
-
-        {pageTitle && (
-          <div className="flex items-center justify-between text-xs text-manga-text-muted">
-            <div className="flex items-center gap-2">
-              <span className="truncate max-w-md">{pageTitle}</span>
-              {isLoading && <Badge variant="secondary" className="text-xs">Loading...</Badge>}
-            </div>
-            <div className="flex items-center gap-2">
-              <span>Zoom: {zoomLevel}%</span>
+            <div>
+              Zoom: {zoom}%
             </div>
           </div>
-        )}
-      </div>
+        </CardContent>
+      </Card>
 
-      <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 relative overflow-hidden">
-          {isLoading && (
-            <div className="absolute inset-0 bg-manga-bg/80 flex items-center justify-center z-10">
-              <div className="flex items-center gap-3">
-                <RefreshCw className="w-6 h-6 animate-spin text-primary" />
-                <span className="text-manga-text">Loading...</span>
-              </div>
-            </div>
-          )}
-          
-          <iframe
-            ref={iframeRef}
-            key={iframeKey}
-            src={currentUrl}
-            className="w-full h-full border-0"
-            style={{ 
-              transform: `scale(${zoomLevel / 100})`,
-              transformOrigin: 'top left',
-              width: `${10000 / zoomLevel}%`,
-              height: `${10000 / zoomLevel}%`
-            }}
-            onLoad={handleIframeLoad}
-            title={pageTitle || `${selectedSite || 'Web'} Preview`}
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-top-navigation allow-downloads allow-navigation-by-user-activation allow-modals"
-          />
-        </div>
-
-        {showDevTools && (
-          <div className="w-80 bg-manga-surface border-l border-manga-border p-4 overflow-y-auto">
-            <div className="space-y-4">
-              <div>
-                <h3 className="font-semibold text-manga-text mb-2">Developer Tools</h3>
-                <div className="space-y-2 text-sm">
-                  <div>
-                    <span className="text-manga-text-muted">URL:</span>
-                    <div className="text-manga-text break-all">{currentUrl}</div>
-                  </div>
-                  <div>
-                    <span className="text-manga-text-muted">Title:</span>
-                    <div className="text-manga-text">{pageTitle || 'N/A'}</div>
-                  </div>
-                  <div>
-                    <span className="text-manga-text-muted">Security:</span>
-                    <div className="text-manga-text">{isSecure ? 'HTTPS' : 'HTTP'}</div>
-                  </div>
-                  <div>
-                    <span className="text-manga-text-muted">Zoom:</span>
-                    <div className="text-manga-text">{zoomLevel}%</div>
-                  </div>
-                  <div>
-                    <span className="text-manga-text-muted">History:</span>
-                    <div className="text-manga-text">{history.length} items</div>
-                  </div>
-                  <div>
-                    <span className="text-manga-text-muted">Bookmarks:</span>
-                    <div className="text-manga-text">{bookmarks.length} items</div>
-                  </div>
-                </div>
-              </div>
-              
-              <div>
-                <h4 className="font-medium text-manga-text mb-2">Console</h4>
-                <div className="bg-manga-bg p-2 rounded text-xs font-mono text-manga-text-muted">
-                  Browser simulation active<br/>
-                  CORS restrictions may apply<br/>
-                  Iframe sandbox enabled
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* Browser Frame */}
+      <div 
+        className="flex-1 relative bg-white rounded-lg overflow-hidden border"
+        style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top left' }}
+      >
+        <iframe
+          ref={iframeRef}
+          src={currentUrl}
+          className="w-full h-full border-0"
+          onLoad={() => {
+            setIsLoading(false);
+            // Try to detect navigation state (limited due to CORS)
+            try {
+              const iframe = iframeRef.current;
+              if (iframe?.contentWindow) {
+                setCanGoBack(iframe.contentWindow.history.length > 1);
+                setCanGoForward(false); // Cannot reliably detect this
+              }
+            } catch (error) {
+              // Ignore CORS errors
+            }
+          }}
+          onError={() => {
+            setIsLoading(false);
+            toast({
+              title: "Failed to Load",
+              description: "Unable to load the requested page.",
+              variant: "destructive",
+            });
+          }}
+          title="Manga Site Browser"
+          sandbox="allow-same-origin allow-scripts allow-forms allow-navigation"
+        />
       </div>
     </div>
   );
 }
-import { useState } from 'react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { ArrowLeft, ArrowRight, RotateCcw, Home, ExternalLink } from 'lucide-react';
-
-interface MangaIframeProps {
-  url: string;
-  onUrlChange: (url: string) => void;
-}
-
-const MangaIframe = ({ url, onUrlChange }: MangaIframeProps) => {
-  const [inputUrl, setInputUrl] = useState(url);
-
-  const handleNavigate = () => {
-    onUrlChange(inputUrl);
-  };
-
-  const handleGoHome = () => {
-    const homeUrl = 'https://www.google.com';
-    setInputUrl(homeUrl);
-    onUrlChange(homeUrl);
-  };
-
-  return (
-    <Card className="flex-1 p-4 m-4">
-      <div className="flex items-center space-x-2 mb-4">
-        <Button variant="outline" size="sm">
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="sm">
-          <ArrowRight className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="sm">
-          <RotateCcw className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="sm" onClick={handleGoHome}>
-          <Home className="h-4 w-4" />
-        </Button>
-        <Input
-          value={inputUrl}
-          onChange={(e) => setInputUrl(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleNavigate()}
-          className="flex-1"
-          placeholder="Enter URL..."
-        />
-        <Button onClick={handleNavigate}>
-          Go
-        </Button>
-        <Button variant="outline" size="sm">
-          <ExternalLink className="h-4 w-4" />
-        </Button>
-      </div>
-      
-      <div className="border rounded-lg overflow-hidden" style={{ height: 'calc(100vh - 250px)' }}>
-        <iframe
-          src={url}
-          className="w-full h-full"
-          title="Manga Browser"
-          sandbox="allow-same-origin allow-scripts allow-forms allow-navigation"
-        />
-      </div>
-    </Card>
-  );
-};
-
-export default MangaIframe;
